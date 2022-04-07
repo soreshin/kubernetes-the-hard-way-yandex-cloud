@@ -1,15 +1,22 @@
-# Kubernetes The Hard Way
+# Kubernetes The Hard Way Yandex Cloud version
+
+Я решил сделать форк известного проекта [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way). Если у вас нет возможности создать учетную запись в Google Cloud Platform, то вы можете пройти этот путь в Yandex Cloud.
+
+Моей целью не было сделать перевод на русский язык этой документации, поэтому все мои изменения были сделаны на англйиском. Именно поэтому я добавлял ссылки на английскую версию документации к Yandex Cloud.
+
+I've decided to make a fork of a famous project [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way). If you don't have an option to create an account in Google Cloud Platform you can walk this way in Yandex Cloud.
+
+My goal wasn't making a translation of origin documentation. Because of that, all my changes was made on english. And because of that I added links to english version of YC's documentation.
+
+# Original README from "Kubernetes The Hard Way"
+
+## Kubernetes The Hard Way
 
 This tutorial walks you through setting up Kubernetes the hard way. This guide is not for people looking for a fully automated command to bring up a Kubernetes cluster. If that's you then check out [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine), or the [Getting Started Guides](https://kubernetes.io/docs/setup).
 
 Kubernetes The Hard Way is optimized for learning, which means taking the long route to ensure you understand each task required to bootstrap a Kubernetes cluster.
 
 > The results of this tutorial should not be viewed as production ready, and may receive limited support from the community, but don't let that stop you from learning!
-
-## Copyright
-
-<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
-
 
 ## Target Audience
 

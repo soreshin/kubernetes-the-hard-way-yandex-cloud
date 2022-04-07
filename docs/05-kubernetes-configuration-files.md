@@ -13,9 +13,7 @@ Each kubeconfig requires a Kubernetes API Server to connect to. To support high 
 Retrieve the `kubernetes-the-hard-way` static IP address:
 
 ```
-KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
-  --region $(gcloud config get-value compute/region) \
-  --format 'value(address)')
+KUBERNETES_PUBLIC_ADDRESS=$(yc vpc address get kubernetes-the-hard-way --format json | jq -r '.external_ipv4_address.address')
 ```
 
 ### The kubelet Kubernetes Configuration File
@@ -199,7 +197,11 @@ Copy the appropriate `kubelet` and `kube-proxy` kubeconfig files to each worker 
 
 ```
 for instance in worker-0 worker-1 worker-2; do
-  gcloud compute scp ${instance}.kubeconfig kube-proxy.kubeconfig ${instance}:~/
+  EXTERNAL_IP=$(yc compute instance get --name ${instance} \
+    --format json \
+    | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+
+  scp ${instance}.kubeconfig kube-proxy.kubeconfig yc-user@${EXTERNAL_IP}:~/
 done
 ```
 
@@ -207,7 +209,11 @@ Copy the appropriate `kube-controller-manager` and `kube-scheduler` kubeconfig f
 
 ```
 for instance in controller-0 controller-1 controller-2; do
-  gcloud compute scp admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig ${instance}:~/
+  EXTERNAL_IP=$(yc compute instance get --name ${instance} \
+    --format json \
+    | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+
+  scp admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig yc-user@${EXTERNAL_IP}:~/
 done
 ```
 

@@ -1,8 +1,39 @@
 # Provisioning Compute Resources
 
-Kubernetes requires a set of machines to host the Kubernetes control plane and the worker nodes where containers are ultimately run. In this lab you will provision the compute resources required for running a secure and highly available Kubernetes cluster across a single [compute zone](https://cloud.google.com/compute/docs/regions-zones/regions-zones).
+Kubernetes requires a set of machines to host the Kubernetes control plane and the worker nodes where containers are ultimately run. In this lab you will provision the compute resources required for running a secure and highly available Kubernetes cluster across a single [availability zone](https://cloud.yandex.com/en-ru/docs/overview/concepts/geo-scope).
 
-> Ensure a default compute zone and region have been set as described in the [Prerequisites](01-prerequisites.md#set-a-default-compute-region-and-zone) lab.
+## Preparing SSH-keys
+
+Be sure that you have pair of ssh-keys in your home directory (`~/.ssh/id_rsa` and `~/.ssh/id_rsa.pub`).
+
+If you don't have one, generate a pair of ssh-keys.
+```
+ssh-keygen
+```
+
+During generation be sure that your pair will be stored in default path (`~/.ssh/id_rsa` and `~/.ssh/id_rsa.pub`).
+```
+Generating public/private rsa key pair.
+Enter file in which to save the key (/Users/username/.ssh/id_rsa):
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /Users/username/.ssh/id_rsa
+Your public key has been saved in /Users/username/.ssh/id_rsa.pub
+The key fingerprint is:
+SHA256:5M/3XTcFnZkERLvsoHtsgmTUP4emKEJpRKsQ9vuNjI0 username@username.local
+The key's randomart image is:
++---[RSA 3072]----+
+|            o+.. |
+|.. .          o.+|
+|..o .   o    ..+.|
+|.  +   + .  . .. |
+|. o o . S ...o  .|
+| . =   o o.=o.  .|
+|  o * = o.* +. .o|
+|   E * + o.= . .+|
+|    . .  .+   . .|
++----[SHA256]-----+
+```
 
 ## Networking
 
@@ -12,82 +43,88 @@ The Kubernetes [networking model](https://kubernetes.io/docs/concepts/cluster-ad
 
 ### Virtual Private Cloud Network
 
-In this section a dedicated [Virtual Private Cloud](https://cloud.google.com/compute/docs/networks-and-firewalls#networks) (VPC) network will be setup to host the Kubernetes cluster.
+In this section a dedicated [Virtual Private Cloud](https://cloud.yandex.com/en-ru/docs/vpc/concepts/) (VPC) network will be setup to host the Kubernetes cluster.
 
 Create the `kubernetes-the-hard-way` custom VPC network:
 
 ```
-gcloud compute networks create kubernetes-the-hard-way --subnet-mode custom
+yc vpc network create --name kubernetes-the-hard-way --description "Main network"
 ```
 
-A [subnet](https://cloud.google.com/compute/docs/vpc/#vpc_networks_and_subnets) must be provisioned with an IP address range large enough to assign a private IP address to each node in the Kubernetes cluster.
+A [subnet](https://cloud.yandex.com/en-ru/docs/vpc/concepts/network) must be provisioned with an IP address range large enough to assign a private IP address to each node in the Kubernetes cluster.
 
 Create the `kubernetes` subnet in the `kubernetes-the-hard-way` VPC network:
 
 ```
-gcloud compute networks subnets create kubernetes \
-  --network kubernetes-the-hard-way \
+yc vpc subnet create --name kubernetes \
+  --description "Kubernetes subnet" \
+  --network-name kubernetes-the-hard-way \
+  --zone ru-central1-a \
   --range 10.240.0.0/24
 ```
 
 > The `10.240.0.0/24` IP address range can host up to 254 compute instances.
 
-### Firewall Rules
-
-Create a firewall rule that allows internal communication across all protocols:
-
-```
-gcloud compute firewall-rules create kubernetes-the-hard-way-allow-internal \
-  --allow tcp,udp,icmp \
-  --network kubernetes-the-hard-way \
-  --source-ranges 10.240.0.0/24,10.200.0.0/16
-```
-
-Create a firewall rule that allows external SSH, ICMP, and HTTPS:
-
-```
-gcloud compute firewall-rules create kubernetes-the-hard-way-allow-external \
-  --allow tcp:22,tcp:6443,icmp \
-  --network kubernetes-the-hard-way \
-  --source-ranges 0.0.0.0/0
-```
-
-> An [external load balancer](https://cloud.google.com/compute/docs/load-balancing/network/) will be used to expose the Kubernetes API Servers to remote clients.
-
-List the firewall rules in the `kubernetes-the-hard-way` VPC network:
-
-```
-gcloud compute firewall-rules list --filter="network:kubernetes-the-hard-way"
-```
-
-> output
-
-```
-NAME                                    NETWORK                  DIRECTION  PRIORITY  ALLOW                 DENY  DISABLED
-kubernetes-the-hard-way-allow-external  kubernetes-the-hard-way  INGRESS    1000      tcp:22,tcp:6443,icmp        False
-kubernetes-the-hard-way-allow-internal  kubernetes-the-hard-way  INGRESS    1000      tcp,udp,icmp                Fals
-```
-
 ### Kubernetes Public IP Address
 
-Allocate a static IP address that will be attached to the external load balancer fronting the Kubernetes API Servers:
+Create a network load balancer with simple listener on the port tcp:6443. There will be attached target groups for this balancer.
 
 ```
-gcloud compute addresses create kubernetes-the-hard-way \
-  --region $(gcloud config get-value compute/region)
+yc load-balancer network-load-balancer create \
+  --name kubernetes-load-balancer \
+  --listener name=kubernetes-listener,external-ip-version=ipv4,port=6443,target-port=6443
 ```
 
-Verify the `kubernetes-the-hard-way` static IP address was created in your default compute region:
+Verify the `kubernetes-load-balancer` was created in your default compute region:
 
 ```
-gcloud compute addresses list --filter="name=('kubernetes-the-hard-way')"
+yc load-balancer network-load-balancer list
 ```
 
 > output
+```
++----------------------+--------------------------+-------------+----------+----------------+------------------------+----------+
+|          ID          |           NAME           |  REGION ID  |   TYPE   | LISTENER COUNT | ATTACHED TARGET GROUPS |  STATUS  |
++----------------------+--------------------------+-------------+----------+----------------+------------------------+----------+
+| enpcq3mn52tabordart2 | kubernetes-load-balancer | ru-central1 | EXTERNAL |              1 |                        | INACTIVE |
++----------------------+--------------------------+-------------+----------+----------------+------------------------+----------+
+```
+
+Also you can verify that load-balancer automaticly created a Public IP:
 
 ```
-NAME                     ADDRESS/RANGE   TYPE      PURPOSE  NETWORK  REGION    SUBNET  STATUS
-kubernetes-the-hard-way  XX.XXX.XXX.XXX  EXTERNAL                    us-west1          RESERVED
+yc vpc address list
+```
+
+> output
+```
++----------------------+------+--------------+----------+------+
+|          ID          | NAME |   ADDRESS    | RESERVED | USED |
++----------------------+------+--------------+----------+------+
+| e9bd2dsn9g3rg7lipe2u |      | 51.250.78.46 | false    | true |
++----------------------+------+--------------+----------+------+
+```
+
+Write down given ID of Public IP to update it.
+
+* rename:
+`yc vpc address update <ID_of_public_IP> --new-name kubernetes-the-hard-way`
+* make it static:
+`yc vpc address update <ID_of_public_IP> --reserved=true`
+
+Verify the result:
+
+```
+yc vpc address list
+```
+
+> output
+```
++----------------------+-------------------------+--------------+----------+------+
+|          ID          |          NAME           |   ADDRESS    | RESERVED | USED |
++----------------------+-------------------------+--------------+----------+------+
+| e9bd2dsn9g3rg7lipe2u | kubernetes-the-hard-way | 51.250.78.46 | true     | true |
++----------------------+-------------------------+--------------+----------+------+
 ```
 
 ## Compute Instances
@@ -100,17 +137,16 @@ Create three compute instances which will host the Kubernetes control plane:
 
 ```
 for i in 0 1 2; do
-  gcloud compute instances create controller-${i} \
-    --async \
-    --boot-disk-size 200GB \
-    --can-ip-forward \
-    --image-family ubuntu-2004-lts \
-    --image-project ubuntu-os-cloud \
-    --machine-type e2-standard-2 \
-    --private-network-ip 10.240.0.1${i} \
-    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
-    --subnet kubernetes \
-    --tags kubernetes-the-hard-way,controller
+  yc compute instance create \
+      --async \
+      --name controller-${i} \
+      --hostname controller-${i} \
+      --zone $(yc config get compute-default-zone) \
+      --cores 2 --memory 8 \
+      --create-boot-disk size=30,image-folder-id=standard-images,image-family=ubuntu-2004-lts \
+      --network-interface subnet-name=kubernetes,nat-ip-version=ipv4,ipv4-address=10.240.0.1${i} \
+      --labels type=controller,project=kubernetes-the-hard-way \
+      --ssh-key ~/.ssh/id_rsa.pub
 done
 ```
 
@@ -124,18 +160,17 @@ Create three compute instances which will host the Kubernetes worker nodes:
 
 ```
 for i in 0 1 2; do
-  gcloud compute instances create worker-${i} \
-    --async \
-    --boot-disk-size 200GB \
-    --can-ip-forward \
-    --image-family ubuntu-2004-lts \
-    --image-project ubuntu-os-cloud \
-    --machine-type e2-standard-2 \
-    --metadata pod-cidr=10.200.${i}.0/24 \
-    --private-network-ip 10.240.0.2${i} \
-    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
-    --subnet kubernetes \
-    --tags kubernetes-the-hard-way,worker
+  yc compute instance create \
+      --async \
+      --name worker-${i} \
+      --hostname worker-${i} \
+      --zone $(yc config get compute-default-zone) \
+      --cores 2 --memory 8 \
+      --create-boot-disk size=30,image-folder-id=standard-images,image-family=ubuntu-2004-lts \
+      --network-interface subnet-name=kubernetes,nat-ip-version=ipv4,ipv4-address=10.240.0.2${i} \
+      --metadata pod-cidr=10.200.${i}.0/24 \
+      --labels type=worker,project=kubernetes-the-hard-way \
+      --ssh-key ~/.ssh/id_rsa.pub
 done
 ```
 
@@ -144,84 +179,70 @@ done
 List the compute instances in your default compute zone:
 
 ```
-gcloud compute instances list --filter="tags.items=kubernetes-the-hard-way"
+yc compute instance list
 ```
 
 > output
 
 ```
-NAME          ZONE        MACHINE_TYPE   PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP    STATUS
-controller-0  us-west1-c  e2-standard-2               10.240.0.10  XX.XX.XX.XXX   RUNNING
-controller-1  us-west1-c  e2-standard-2               10.240.0.11  XX.XXX.XXX.XX  RUNNING
-controller-2  us-west1-c  e2-standard-2               10.240.0.12  XX.XXX.XX.XXX  RUNNING
-worker-0      us-west1-c  e2-standard-2               10.240.0.20  XX.XX.XXX.XXX  RUNNING
-worker-1      us-west1-c  e2-standard-2               10.240.0.21  XX.XX.XX.XXX   RUNNING
-worker-2      us-west1-c  e2-standard-2               10.240.0.22  XX.XXX.XX.XX   RUNNING
++----------------------+--------------+---------------+---------+---------------+-------------+
+|          ID          |     NAME     |    ZONE ID    | STATUS  |  EXTERNAL IP  | INTERNAL IP |
++----------------------+--------------+---------------+---------+---------------+-------------+
+| fhm1u4jenlsv3qnbgvkj | controller-2 | ru-central1-a | RUNNING | 51.250.65.68  | 10.240.0.12 |
+| fhm6sollt8c146g2jv8j | worker-2     | ru-central1-a | RUNNING | 51.250.69.241 | 10.240.0.22 |
+| fhmbs7jh6k56nce2p49n | worker-1     | ru-central1-a | RUNNING | 51.250.74.55  | 10.240.0.21 |
+| fhmdto47vsl0i2o6t2tl | controller-1 | ru-central1-a | RUNNING | 51.250.76.24  | 10.240.0.11 |
+| fhmhrklrp2ke4o9cs1ft | worker-0     | ru-central1-a | RUNNING | 51.250.69.211 | 10.240.0.20 |
+| fhmt585tist9n6lmi4nr | controller-0 | ru-central1-a | RUNNING | 51.250.68.231 | 10.240.0.10 |
++----------------------+--------------+---------------+---------+---------------+-------------+
 ```
 
 ## Configuring SSH Access
 
-SSH will be used to configure the controller and worker instances. When connecting to compute instances for the first time SSH keys will be generated for you and stored in the project or instance metadata as described in the [connecting to instances](https://cloud.google.com/compute/docs/instances/connecting-to-instance) documentation.
+SSH will be used to configure the controller and worker instances.
+
+> Ensure you have pair of ssh-keys as described in the [Preparing SSH-keys](03-compute-resources.md#Preparing-SSH-keys).
+
+Save variables with instances' IPs. You have to do it every time when you want to connect to instances (if you closed and opened console).
+```
+for i in 0 1 2; do
+  export CONTROLLER${i}_IP=$(yc compute instance get --name controller-${i} --format json | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+  export WORKER${i}_IP=$(yc compute instance get --name worker-${i} --format json | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+done
+```
 
 Test SSH access to the `controller-0` compute instances:
 
 ```
-gcloud compute ssh controller-0
+ssh yc-user@${CONTROLLER0_IP}
 ```
 
-If this is your first time connecting to a compute instance SSH keys will be generated for you. Enter a passphrase at the prompt to continue:
+If this is your first time connecting to a compute instance SSH you will see the question about trusting this server. Agree by typing **"yes"** to continue:
 
 ```
-WARNING: The public SSH key file for gcloud does not exist.
-WARNING: The private SSH key file for gcloud does not exist.
-WARNING: You do not have an SSH key for gcloud.
-WARNING: SSH keygen will be executed to generate a key.
-Generating public/private rsa key pair.
-Enter passphrase (empty for no passphrase):
-Enter same passphrase again:
+The authenticity of host '51.250.69.211 (51.250.69.211)' can't be established.
+ED25519 key fingerprint is SHA256:b4/j5O1usG9qHYOstxJWrkRjRkhFYsXgcxpbYdRKdeM.
+This key is not known by any other names
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
 ```
 
-At this point the generated SSH keys will be uploaded and stored in your project:
+After you have been logged into the `controller-0` instance:
 
 ```
-Your identification has been saved in /home/$USER/.ssh/google_compute_engine.
-Your public key has been saved in /home/$USER/.ssh/google_compute_engine.pub.
-The key fingerprint is:
-SHA256:nz1i8jHmgQuGt+WscqP5SeIaSy5wyIJeL71MuV+QruE $USER@$HOSTNAME
-The key's randomart image is:
-+---[RSA 2048]----+
-|                 |
-|                 |
-|                 |
-|        .        |
-|o.     oS        |
-|=... .o .o o     |
-|+.+ =+=.+.X o    |
-|.+ ==O*B.B = .   |
-| .+.=EB++ o      |
-+----[SHA256]-----+
-Updating project ssh metadata...-Updated [https://www.googleapis.com/compute/v1/projects/$PROJECT_ID].
-Updating project ssh metadata...done.
-Waiting for SSH key to propagate.
-```
-
-After the SSH keys have been updated you'll be logged into the `controller-0` instance:
-
-```
-Welcome to Ubuntu 20.04.2 LTS (GNU/Linux 5.4.0-1042-gcp x86_64)
+Welcome to Ubuntu 20.04.3 LTS (GNU/Linux 5.4.0-97-generic x86_64)
 ...
 ```
 
 Type `exit` at the prompt to exit the `controller-0` compute instance:
 
 ```
-$USER@controller-0:~$ exit
+yc-user@controller-0:~$ exit
 ```
 > output
 
 ```
 logout
-Connection to XX.XX.XX.XXX closed
+Connection to XX.XX.XX.XX closed.
 ```
 
 Next: [Provisioning a CA and Generating TLS Certificates](04-certificate-authority.md)

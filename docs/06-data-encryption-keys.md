@@ -36,7 +36,11 @@ Copy the `encryption-config.yaml` encryption config file to each controller inst
 
 ```
 for instance in controller-0 controller-1 controller-2; do
-  gcloud compute scp encryption-config.yaml ${instance}:~/
+  EXTERNAL_IP=$(yc compute instance get --name ${instance} \
+    --format json \
+    | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+
+  scp encryption-config.yaml yc-user@${EXTERNAL_IP}:~/
 done
 ```
 

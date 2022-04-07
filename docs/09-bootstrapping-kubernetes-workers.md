@@ -4,10 +4,19 @@ In this lab you will bootstrap three Kubernetes worker nodes. The following comp
 
 ## Prerequisites
 
-The commands in this lab must be run on each worker instance: `worker-0`, `worker-1`, and `worker-2`. Login to each worker instance using the `gcloud` command. Example:
+The commands in this lab must be run on each worker instance: `worker-0`, `worker-1`, and `worker-2`.
+
+Before login to instances you have to save variables with instances' IPs.
+```
+for i in 0 1 2; do
+  export WORKER${i}_IP=$(yc compute instance get --name worker-${i} --format json | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+done
+```
+
+Login to each controller instance using the `ssh` command. Example:
 
 ```
-gcloud compute ssh worker-0
+ssh yc-user@${WORKER0_IP}
 ```
 
 ### Running commands in parallel with tmux
@@ -90,8 +99,7 @@ Install the worker binaries:
 Retrieve the Pod CIDR range for the current compute instance:
 
 ```
-POD_CIDR=$(curl -s -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/computeMetadata/v1/instance/attributes/pod-cidr)
+POD_CIDR=$(curl -H Metadata-Flavor:Google 169.254.169.254/computeMetadata/v1/instance/attributes/pod-cidr)
 ```
 
 Create the `bridge` network configuration file:
@@ -297,8 +305,7 @@ EOF
 List the registered Kubernetes nodes:
 
 ```
-gcloud compute ssh controller-0 \
-  --command "kubectl get nodes --kubeconfig admin.kubeconfig"
+ssh yc-user@${CONTROLLER1_IP} "kubectl get nodes --kubeconfig admin.kubeconfig"
 ```
 
 > output

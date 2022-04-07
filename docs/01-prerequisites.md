@@ -1,54 +1,33 @@
 # Prerequisites
 
-## Google Cloud Platform
+## Yandex Cloud Platform
 
-This tutorial leverages the [Google Cloud Platform](https://cloud.google.com/) to streamline provisioning of the compute infrastructure required to bootstrap a Kubernetes cluster from the ground up. [Sign up](https://cloud.google.com/free/) for $300 in free credits.
+This tutorial is my humble experiment of migration the famous project "Kubernetes The Hard Way" from Google Cloud to Yandex Cloud. You can sign up and get 4000 ₽ (either 24 000 ₸ or 50 $ depends on you location) welcome free credit.
 
-[Estimated cost](https://cloud.google.com/products/calculator#id=873932bc-0840-4176-b0fa-a8cfd4ca61ae) to run this tutorial: $0.23 per hour ($5.50 per day).
+> I think that the compute resources required for this tutorial exceed the Yandex Cloud Platform free tier.
 
-> The compute resources required for this tutorial exceed the Google Cloud Platform free tier.
 
-## Google Cloud Platform SDK
+## Yandex Cloud Platform CLI
 
-### Install the Google Cloud SDK
+### Install the Yandex Cloud CLI
 
-Follow the Google Cloud SDK [documentation](https://cloud.google.com/sdk/) to install and configure the `gcloud` command line utility.
+Follow the Yandex Cloud CLI [documentation](https://cloud.yandex.com/en-ru/docs/cli/) to install and configure the `yc` command line utility.
 
-Verify the Google Cloud SDK version is 338.0.0 or higher:
+Verify the Yandex Cloud CLI version (I tested this guide on Yandex Cloud CLI 0.89.0 version):
 
 ```
-gcloud version
+yc version
 ```
 
-### Set a Default Compute Region and Zone
+### Initialize Yandex Cloud CLI
 
 This tutorial assumes a default compute region and zone have been configured.
 
-If you are using the `gcloud` command-line tool for the first time `init` is the easiest way to do this:
+If you are using the `yc` command-line tool for the first time `init` is the easiest way to do this. You have to receive [OAuth](https://oauth.yandex.ru/authorize?response_type=token&client_id=1a6990aa636648e9b2ef855fa7bec2fb) token to access to Yandex Cloud ([documentation](https://cloud.yandex.ru/docs/iam/concepts/authorization/oauth-token))
 
 ```
-gcloud init
+yc init
 ```
-
-Then be sure to authorize gcloud to access the Cloud Platform with your Google user credentials:
-
-```
-gcloud auth login
-```
-
-Next set a default compute region and compute zone:
-
-```
-gcloud config set compute/region us-west1
-```
-
-Set a default compute zone:
-
-```
-gcloud config set compute/zone us-west1-c
-```
-
-> Use the `gcloud compute zones list` command to view additional regions and zones.
 
 ## Running Commands in Parallel with tmux
 

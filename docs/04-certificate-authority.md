@@ -132,11 +132,13 @@ cat > ${instance}-csr.json <<EOF
 }
 EOF
 
-EXTERNAL_IP=$(gcloud compute instances describe ${instance} \
-  --format 'value(networkInterfaces[0].accessConfigs[0].natIP)')
+EXTERNAL_IP=$(yc compute instance get --name ${instance} \
+  --format json \
+  | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
 
-INTERNAL_IP=$(gcloud compute instances describe ${instance} \
-  --format 'value(networkInterfaces[0].networkIP)')
+INTERNAL_IP=$(yc compute instance get --name ${instance} \
+  --format json \
+  | jq -r '.network_interfaces[0].primary_v4_address.address')
 
 cfssl gencert \
   -ca=ca.pem \
@@ -299,9 +301,7 @@ Generate the Kubernetes API Server certificate and private key:
 ```
 {
 
-KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
-  --region $(gcloud config get-value compute/region) \
-  --format 'value(address)')
+KUBERNETES_PUBLIC_ADDRESS=$(yc vpc address get kubernetes-the-hard-way --format json | jq -r '.external_ipv4_address.address')
 
 KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
 
@@ -396,7 +396,11 @@ Copy the appropriate certificates and private keys to each worker instance:
 
 ```
 for instance in worker-0 worker-1 worker-2; do
-  gcloud compute scp ca.pem ${instance}-key.pem ${instance}.pem ${instance}:~/
+  EXTERNAL_IP=$(yc compute instance get --name ${instance} \
+    --format json \
+    | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+
+  scp ca.pem ${instance}-key.pem ${instance}.pem yc-user@${EXTERNAL_IP}:~/
 done
 ```
 
@@ -404,8 +408,11 @@ Copy the appropriate certificates and private keys to each controller instance:
 
 ```
 for instance in controller-0 controller-1 controller-2; do
-  gcloud compute scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
-    service-account-key.pem service-account.pem ${instance}:~/
+  EXTERNAL_IP=$(yc compute instance get --name ${instance} \
+    --format json \
+    | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+
+  scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem service-account-key.pem service-account.pem yc-user@${EXTERNAL_IP}:~/
 done
 ```
 
